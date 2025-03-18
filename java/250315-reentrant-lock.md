@@ -12,7 +12,7 @@
    이 메서드는 대기 중 인터럽트가 발생하면 InterruptedException이 발생하며 락 획득을 포기한다.
 - `void unlock()` : 락을 해제한다. 락을 해제하면 락 획득을 대기 중인 스레드 중 하나가 락을 획득할 수 있게 된다.
   락을 획득한 스레드가 호출해야 하며, 그렇지 않으면 IllegalMonitorStateException이 발생할 수 있다.
-- Condition newCondition() : Condition 객체를 생성하여 반환한다. Condition 객체는 락과 결합되어 사용되며, 스레드가 특정 조건을 기다리거나 신호를 받을 수 있도록 한다.
+- `Condition newCondition()` : Condition 객체를 생성하여 반환한다. Condition 객체는 락과 결합되어 사용되며, 스레드가 특정 조건을 기다리거나 신호를 받을 수 있도록 한다.
   이는 Object 클래스의 wait, notify, notifyAll 메서드와 유사한 역할을 한다.
 
 ## 1-2. 공정성 문제 해결
