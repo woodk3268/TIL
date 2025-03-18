@@ -8,7 +8,7 @@
 - `void lockInterruptibly()` : 락 획득을 시도하되, 다른 스레드가 인터럽트할 수 있도록 한다. 만약 다른 스레드가 이미 락을 획득했다면, 현재 스레드는 락을 획득할 때까지 대기한다.
   대기 중에 인터럽트가 발생하면 InterruptedException이 발생하며 락 획득을 포기한다.
 - `boolean tryLock()` : 락 획득을 시도하고, 즉시 성공 여부를 반환한다. 만약 다른 스레드가 이미 락을 획득했다면 false를 반환하고, 그렇지 않으면 락을 획득하고 true를 반환한다.
-- `boolean tryLock(long time, TimeUnit unit) : 주어진 시간동안 락 획득을 시도한다. 주어진 시간 안에 락을 획득하면 true를 반환한다. 주어진 시간이 지나도 락을 획득하지 못한 경우 false를 반환한다.
+- `boolean tryLock(long time, TimeUnit unit)` : 주어진 시간동안 락 획득을 시도한다. 주어진 시간 안에 락을 획득하면 true를 반환한다. 주어진 시간이 지나도 락을 획득하지 못한 경우 false를 반환한다.
    이 메서드는 대기 중 인터럽트가 발생하면 InterruptedException이 발생하며 락 획득을 포기한다.
 - `void unlock()` : 락을 해제한다. 락을 해제하면 락 획득을 대기 중인 스레드 중 하나가 락을 획득할 수 있게 된다.
   락을 획득한 스레드가 호출해야 하며, 그렇지 않으면 IllegalMonitorStateException이 발생할 수 있다.
