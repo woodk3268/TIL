@@ -69,7 +69,7 @@
   ```
   - lock.tryLock()에서 false가 반환되므로 메서드를 종료한다.
 
-  ### 1-4-2. tryLco(시간) 예시
+  ### 1-4-2. tryLock(시간) 예시
   ```
   if(!lock.tryLock(500, TimeUnit.MILLISECONDS)) {
     return false;
