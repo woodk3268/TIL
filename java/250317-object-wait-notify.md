@@ -21,3 +21,42 @@
 
 ## 1-2. 예제
 ### 1-2-1. 버퍼 구현체
+```
+public class BoundedQueueV3 implements BoundedQueue {
+  private final 데이터를 보관하는 버퍼 = new ArrayDeque<>();
+  private final int 버퍼에 저장할 수 있는 최대 크기;
+
+  public BoundedQueueV1(int max) {
+      this.max = max;
+  }
+
+  @Override
+  public synchronized void put(String data) {
+    while(큐가 가득차면) {
+         try{
+               wait(); // 락을 반납하고 대기 (RUNNABLE -> WAITING)
+         }catch(InterruptedException e){}
+    }
+    큐에 데이터를 저장;
+      notify(); // 대기 중인 스레드를 깨움. WAIT -> BLOCKED
+  }
+
+  @Override
+  public synchronized String take() {
+    while(큐가 비어있으면) {
+         try{
+               wait(); // 락을 반납하고 대기 (RUNNABLE -> WAITING)
+         }catch(InterruptedException e){}
+    }
+    notify() // 대기 중인 스레드를 깨움. WAIT -> BLOCKED
+    return 큐에서 꺼낸 데이터;
+  }
+}
+```
+
+** 스레드 대기 집합(wait set)**
+- synchronized 임계 영역 안에서 Object.wait()를 호출하면 스레드는 대기(WAITING) 상태에 들어간다.
+- 이렇게 대기 상태에 들어간 스레드를 관리하는 것을 대기 집합이라 한다.
+- 참고로 모든 객체는 각자의 대기 집합을 가지고 있다.
+- 모든 객체는 락(모니터 락)과 대기 집합을 가지고 있다. 둘은 한 쌍으로 사용된다.
+- 따라서, 락을 획득한 객체의 대기 집합을 사용해야 한다.(p.71)
