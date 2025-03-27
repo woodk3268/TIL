@@ -63,3 +63,186 @@ public interface ExecutorService extends Executor, AutoCloseable {
 - Executor 인터페이스를 확장해서 작업 제출과 제어 기능을 추가로 제공한다.
 - Executor 프레임워크를 사용할 때는 대부분 이 인터페이스를 사용한다.
 - ExecutorService 인터페이스의 기본 구현체는 ThreadPoolExecutor이다.
+
+### 2-2. 시작
+```
+public class RunnableTask implements Runnable {
+    private final String name;
+    private int sleepMs = 1000;
+
+    public RunnableTask(String name) {
+      this.name = name;
+    }
+
+    @Override
+    public void run() {
+
+      sleep(sleepMs);
+    }
+}
+```
+
+- Runnable 인터페이스를 구현한다. 1초의 작업이 걸리는 간단한 작업이다.
+
+```public class ExecutorBasicMain {
+      public static void main(String[] args) throws InterruptedException {
+
+        ExecutorService es = new ThreadPoolExecutor(2,2,0,TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());
+        es.execute(new RunnableTask("taskA"));
+        es.execute(new RunnableTask("taskB"));
+        es.execute(new RunnableTask("taskC"));
+        es.execute(new RunnableTask("taskD"));
+
+        printState(es);
+
+        sleep(3000);
+
+        es.close();
+
+        printState(es);
+      }
+  }
+```
+- ExecutorService의 가장 대표적인 구현체는 ThreadPoolExecutor이다.
+- ThreadPoolExecutor는 크게 2가지 요소로 구성되어 ㅣㅇㅆ다.
+  - 스레드 풀 : 스레드를 관리한다.
+  - BlockingQueue : 작업을 보관한다. 생산자 소비자 문제를 해결하기 위해 단순한 큐가 아니라, BlockingQueue를 사용한다.
+  - 생산자가 es.execute(new RunnableTask("taskA"))를 호출하면, RunnableTask("taskA") 인스턴스가 BlockingQueue에 보관된다.
+    - **생산자** : es.execute(작업)를 호출하면 내부에서 BlockingQueue에 작업을 보관한다. main 스레드가 생산자가 된다.
+    - **소비자** : 스레드 풀에 있는 스레드가 소비자이다. 이후에 소비자 중에 하나가 BlockingQueue에 들어있는 작업을 받아서 처리한다.
+   
+**ThreadPoolExecutor 생성자**
+ThreadPoolExecutor의 생성자는 다음 속성을 사용한다.
+- corePoolSize:  스레드 풀에서 관리되는 기본 스레드 수
+- maximumPoolSize : 스레드 풀에서 관리되는 최대 스레드 수
+- keepAliveTime, TimeUnit unit : 기본 스레드 수를 초과해서 만들어진 스레드가 생존할 수 있는 대기 시간. 이 시간동안 처리할 작업이 없다면 초과 스레드는 제거된다.
+- BlockingQueue workQueue : 작업을 보관할 블로킹 큐
+
+### 2-3. 실행 결과 분석
+- ThreadPoolExecutor를 생성한 시점에 스레드 풀에 스레드를 미리 만들어두지는 않는다.
+- main 스레드가 es.execute("taskA ~ taskD")를 호출한다.
+  - 참고로, main 스레드는 작업을 큐에 보관까지만 하고 바로 다음 코드를 수행한다.
+- task A~D 요청이 블로킹 큐에 들어온다.
+- 최초의 작업이 들어오면 이때 작업을 처리하기 위해 스레드를 만든다.
+   - 참고로 스레드 풀에 스레드를 미리 만들어두지는 않는다.
+- 작업이 들어올 때마다 corePoolSize의 크기까지 스레드를 만든다.
+   - 예를 들어서 최초 작업인 taskA가 들어오는 시점에 스레드1을 생성하고, 다음 작업인 taskB가 들어오는 시점에 스레드2를 생성한다.
+   - 이런 방식으로, corePoolSize에 지정한 수만큼 스레드를 스레드 풀에 만든다. 여기서는 2를 설정했으므로 2개까지 만든다.
+   - corePoolSize까지 스레드가 생성되고 나면, 이후에는 스레드를 생성하지 않고 앞서 만든 스레드를 재사용한다.
+   - 참고로, 스레드 풀의 스레드가 작업을 실행할 때, 스레드의 상태가 변경된다.
+- 작업이 완료되면 스레드 풀에 스레드를 반납한다. 스레드를 반납하면 스레드는 대기(WAITING) 상태로 스레드 풀에 대기한다.
+   - 참고로 실제 반납하는 게 아니라, 스레드의 상태가 변경된다.
+- 반납된 스레드는 재사용된다.
+- taskC, taskD의 작업을 처리하기 위해, 스레드 풀에 있는 스레드를 재사용한다.
+- 작업이 완료되면 스레드는 다시 풀에서 대기한다.
+- close()를 호출하면 ThreadPoolExecutor가 종료된다. 이때 스레드 풀에 대기하는 스레드도 함께 제거된다.
+
+## 3. Runnable의 불편함
+### 3-1. Runnable 사용
+- Runnable 인터페이스는 다음과 같은 불편함이 있다.
+ - **반환 값이 없다.** : 스레드의 실행 결과를 직접 받을 수 없다. 스레드가 실행한 결과를 멤버 변수에 넣어두고, join()등을 사용해서 스레드가 종료되길 기다린 다음에 멤버 변수를 통해 값을 받아야 한다.
+ - **예외 처리** : run() 메서드는 체크 예외를 던질 수 없다. 체크 예외의 처리는 메서드 내부에서 처리해야 한다.
+
+### 3-2. 예시 
+```
+public calss RunnableMain {
+      public static void main(String[] args) throws InterruptedException {
+        MyRunnable task = new MyRunnable();
+        Thread thread = new Thread(task, "Thread-1");
+        thread.start();
+        thread.join();
+        int result = task.실행 결과를 담아두는 변수;
+    }
+
+    static class MyRunnable implements Runnable {
+        int 실행 결과를 담아두는 변수;
+
+        @Override
+        public void run() {
+          실행 결과를 담아두는 변수 = new Random().nextInt(10);
+        }
+    }
+}
+```
+
+### 3-3. 실행 결과 분석
+- 프로그램이 시작되면 Thread-1이라는 별도의 스레드를 하나 만든다.
+- Thread-1이 수행하는 MyRunnable은 무작위 값을 하나 구한 다음에 value 필드에 보관한다.
+- 클라이언트인 main 스레드가 이 별도의 스레드에서 만든 값을 얻어오려면 Thread-1 스레드가 종료될 때까지 기다려야 한다.
+- 그래서 main 스레드는 join()을 호출해서 대기한다.
+- 이후에 main 스레드에서 MyRunnable 인스턴스의 value 필드를 통해 최종 무작위 값을 획득한다.
+
+### 3-4. 정리
+- 별도의 스레드에서 만든 값 하나를 받아오는 과정은 다음과 같다.
+- 작업 스레드(Thread-1)는 값을 어딘가에 보관해두어야 하고, 요청 스레드(main)는 작업 스레드의 작업이 끝날 때까지 join()을 호출해서 대기한 다음에, 어딘가에 보관된 값을 찾아서 꺼내야 한다.
+- 만약, 작업 스레드는 간단히 값을 return을 통해 반환하고, 요청 스레드는 그 반환 값을 바로 받을 수 있다면 코드가 훨씬 간결해질 것이다.
+- 이런 문제를 해결하기 위해 Executor 프레임워크는 Callable 과 Future라는 인터페이스를 도입했다.
+
+## 4. Future
+### 4-1. Runnable 과 Callable 비교
+```
+public interface Runnable {
+    void run();
+}
+```
+- Runnable의 run()은 반환 타입이 void 이다. 따라서 값을 반환할 수 없다.
+- 예외가 선언되어 있지 않다. 따라서 해당 인터페이스를 구현하는 모든 메서드는 체크 예외를 던질 수 없다.
+  - 참고로 자식은 부모의 예외 범위를 넘어설 수 없다. 부모에 예외가 선언되어 있지 않으므로 예외를 던질 수 없다.
+  - 물론 런타임(비체크) 예외는 제외다.
+ 
+```
+public interface Callable<V> {
+    V call() throws Exception;
+}
+```
+- Callable의 call()은 반환 타입이 제네릭 V이다. 따라서 값을 반환할 수 있다.
+- throws Exception 예외가 선언되어 있다. 따라서 해당 인터페이스를 구현하는 모든 메서드는 체크 예외인 Exception과 그 하위 예외를 모두 던질 수 있다.
+
+### 4-2. 예제
+public class CallableMainV1 {
+    public static void main(String [] args) throws ExecutionException, InterruptedException {
+      ExectorService es = Executors.newFixedThreadPool(1);
+      Future<Integer> future = es.submit(new MyCallable());
+      Integer result = future.get();
+      es.close();
+    }
+
+    static class MyCallable implements Callable<Integer> {
+        @Override
+        public Integer call() {
+            int value = new Random().nextInt(10);
+            return value;
+        }
+    }
+} 
+- java.util.concurrent.Executors 가 제공하는 newFixedThreadPool(size)을 사용하면 편리하게 ExecutorService를 생성할 수 있다.
+- 아래 두 코드는 동일한 코드이다.
+```
+ ExecutorService es = new ThreadPoolExecutor(1,1,0, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>());              
+```
+
+```
+ ExecutorService es = Executors.newFixedThreadPool(1);
+```
+- Mycallable을 구현하는 부분을 보면, 숫자를 반환하므로 반환할 제네릭 타입을 <Integer>로 선언했다.
+- Runnable과의 차이는, 결과를 필드에 담아두지 않고 결과를 반환한다는 점이다. 따라서 결과를 보관할 별도의 필드를 만들지 않아도 된다.
+
+**submit()**
+```
+<T> Future<T> submit(Callable<T> task); // 인터페이스 정의
+```
+ExecutorService가 제공하는 submit()을 통해 Callable을 작업으로 전달할 수 있따.
+
+```
+Future<Integer> future = es.submit(new MyCallable());
+```
+MyCallable 인스턴스가 블로킹 큐에 전달되고, 스레드 풀의 스레드 중 하나가 이 작업을 실행할 것이다.
+이때 작업의 처리 결과는 직접 반환되는 것이 아니라 Future라는 특별한 인터페이스를 통해 반환된다.
+
+```
+Integer result = future.get();
+```
+future.get()을 호출하면 MyCallable의 call()이 반환한 결과를 받을 수 있다.
+
+참고로 Future.get()은 InterruptedException, ExecutionException 체크 예외를 던진다.
+
