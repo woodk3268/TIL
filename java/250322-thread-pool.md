@@ -104,7 +104,7 @@ public class RunnableTask implements Runnable {
   }
 ```
 - ExecutorService의 가장 대표적인 구현체는 ThreadPoolExecutor이다.
-- ThreadPoolExecutor는 크게 2가지 요소로 구성되어 ㅣㅇㅆ다.
+- ThreadPoolExecutor는 크게 2가지 요소로 구성되어 있다.
   - 스레드 풀 : 스레드를 관리한다.
   - BlockingQueue : 작업을 보관한다. 생산자 소비자 문제를 해결하기 위해 단순한 큐가 아니라, BlockingQueue를 사용한다.
   - 생산자가 es.execute(new RunnableTask("taskA"))를 호출하면, RunnableTask("taskA") 인스턴스가 BlockingQueue에 보관된다.
