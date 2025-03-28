@@ -460,11 +460,37 @@ public class InvokeAllMain {
        CallableTask task3 = new CallableTask("task3", 3000);
        List<CallableTask> tasks = List.of(task1, task2, task3);
 
-        List<Future<Integer>> futures = es.invokeAll(tasks);
+       List<Future<Integer>> futures = es.invokeAll(tasks);
          for (Future<Integer> future : futures) {
-         Integer value = future.get();
+             Integer value = future.get();
         }
         es.close()
     }
 }
 ```
+- `invokeAll()`은 한번에 여러 작업을 제출하고, 모든 작업이 완료될 때까지 기다린다.
+
+```
+public class InvokeAnyMain {
+   public static void main(String[] args) throws  ExecutionException,InterruptedException {
+      ExecutorService es = Executors.newFixedThreadPool(10)
+
+       CallableTask task1 = new CallableTask("task1", 1000);
+       CallableTask task2 = new CallableTask("task2", 2000);
+       CallableTask task3 = new CallableTask("task3", 3000);
+       List<CallableTask> tasks = List.of(task1, task2, task3);
+
+       Integer value = es.invokeAny(tasks);
+       es.close();
+    }
+  
+}
+```
+- `invokeAny()`는 한 번에 여러 작업을 제출하고, 가장 먼저 완료된 작업의 결과를 반환한다.
+- 이때 완료되지 않은 나머지 작업은 인터럽트를 통해 취소한다.
+
+## 8. ExecutorService 주요 메서드 정리
+**작업 제출 및 실행**
+- void execute(Runnable command) : Runnable 작업을 제출한다. 반환값이 없다.
+- <T> Future<T> submit(Callable<T> task) : Callable 작업을 제출하고 결과를 반환받는다.
+- Future<?> submit(Runnable task) : Runnable 작업을 제출하고 결과를 반환 받는다. Runnable은 반환값이 없기 때문에 future.get()을 호출할 경우 null 을 반환한다.
