@@ -266,6 +266,9 @@ future.get()을 호출하면 MyCallable의 call()이 반환한 결과를 받을 
 - 정리하면 Future는 객체를 통해 전달한 작업의 미래 결과를 받을 수 있다.
 
 ### 4-4. 예제 코드 분석
+```
+Future<Integer> future =  es.submit(new MyCallable());
+```
 - submit()을 호출해서 ExecutorService에 taskA를 전달한다.
   **Future의 생성**
 - ExecutorService는 전달한 taskA의 미래 결과를 알 수 있는 Future 객체를 생성한다.
@@ -280,6 +283,10 @@ future.get()을 호출하면 MyCallable의 call()이 반환한 결과를 받을 
 - 참고로 Future의 구현체인 FutureTask는 Runnable 인터페이스도 함께 구현하고 있다.
 - 스레드1은 FutureTask의 run() 메서드를 수행한다.
 - 그리고 run() 메서드가 taskA의 call() 메서드를 수행하고 그 결과를 받아서 처리한다.
+
+```
+Integer result = future.get();
+```
 
 **요청 스레드**
 - 요청 스레드는 Future 인스턴스의 참조를 가지고 있다.
@@ -305,4 +312,159 @@ future.get()을 호출하면 MyCallable의 call()이 반환한 결과를 받을 
 
 **스레드1**
 - 작업을 마친 스레드1은 스레드 풀로 반환된다. RUNNABLE -> WAITING
-  p.23
+
+### 4-5. Future가 필요한 이유
+#### 4-5-1. Future를 반환하는 코드
+```
+Future<Integer> future1 = es.submit(task1);
+Future<Integer> future2 = es.submit(task2);
+
+Integer sum1 = future1.get();
+Integer sum2 = future2.get();
+```
+
+- ExecutorService는 Future를 반환한다. 
+- 요청 스레드는 task1을 ExecutorService에 요청한다.
+  - 요청 스레드는 즉시 Future를 반환 받는다.
+  - 작업 스레드1은 task1을 수행한다.
+- 요청 스레드는 taks2를 ExecutorService에 요청한다.
+   - 과정은 task1에서와 동일하다.
+
+요청 스레드는 task1, task2를 동시에 요청할 수 있다. 따라서 두 작업은 동시에 수행된다.
+- 이후에 요청 스레드는 future1.get()을 호출하며 대기한다.
+  - 작업 스레드1이 작업을 진행하는 약 2초간 대기하고 결과를 받는다.
+- 이후에 요청 스레드는 future2.get()을 호출하며 즉시 결과를 받는다.
+  - 작업 스레드는 이미 2초간 작업을 완료했다. 따라서 future2.get()은 거의 즉시 결과를 반환한다.
+
+#### 4-5-2. Future 없이 결과를 직접 반환하는 코드(가정)
+```
+Integer sum1 = es.submit(task1);
+Integer sum2 = es.submit(task2);
+```
+
+- 만약, ExecutorService가 Future 없이 결과를 직접 반환한다고 가정해본다.
+- 요청 스레드는 task1을 ExecutorService에 요청하고 결과를 기다린다.
+  - 작업 스레드가 작업을 수행하는데 2초가 걸린다.
+  - 요청 스레드는 결과를 받을 때까지 2초간 대기한다.
+  - 요청 스레드는 2초 후에 결과를 받고 다음 라인을 수행한다.
+- 요청 스레드는 task2를 ExecutorService에 요청하고 결과를 기다린다.
+  - 과정은 task1에서와 동일한다.
+
+ Future를 사용하지 않는 경우 결과적으로 task1의 결과를 기다린 다음에 task2를 요청한다.
+ 따라서 총 4초의 시간이 걸렸다. 이것은 마치 단일 스레드가 작업을 한 것과 비슷한 결과이다.
+
+ #### 4-5-3. 정리
+ - Future라는 개념이 없다면 결과를 받을 때까지 요청 스레드는 아무일도 못하고 대기해야 한다. 따라서 다른 작업을 동시에 수행할 수도 없다.
+ - Future라는 개념 덕분에 요청 스레드는 대기하지 않고, 다른 작업을 수행할 수 있다.
+ - Future는 요청 스레드를 블로킹(대기) 상태로 만들지 않고, 필요한 요청을 모두 수행할 수 있게 해준다.
+ - 필요한 모든 요청을 한 다음에 Future.get()을 통해 블로킹 상태로 대기하며 결과를 받으면 된다.
+
+## 5. Future - 취소
+```
+public class FutureCancelMain {
+    private static boolean 실행중인 작업을 인터럽트시킬지 여부 = true;
+
+    public static void main(String[] args) {
+        ExecutorService es = Executors.newFixedThreadPool(1);
+        Future<String> future = es.submit(new MyTask());
+
+        boolean cancelResult1 = future.cancel(실행중인 작업을 인터럽트시킬지 여부);
+
+        try {
+            future.get();
+        } catch(CancellationException e) {
+
+        } catch(InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+
+        es.close();
+    }
+
+    static class MyTask implements Callable<String> {
+
+      @Override
+      public String call() {
+          try {
+              for(int i=0<;i<10;i++){
+                작업 중;
+              }
+          } catch (InterruptedException e) {
+              return "Interrupted";
+          }
+          return "Completed";
+      }
+    } 
+ }
+```
+
+- cancel(true)를 호출했다.
+- 실행 중인 작업에 인터럽트가 발생해서 실행 중인 작업을 중지 시도한다.
+- 이후 Future.get()을 호출하면 CancellationException 런타임 예외가 발생한다.
+
+- 만약, cancel(false)를 호출한다면 실행중인 작업은 그냥 둔다.
+- 실행중인 작업은 그냥 두더라도 cancel()을 호출했기 때문에 Future는 CANCEL 상태가 된다.
+- 이후 Future.get()을 호출하면 CancellationException 런타임 예외가 발생한다.
+
+## 6. Future - 예외
+```
+public class FutureExceptionMain {
+    public static void main(String[] args) {
+      ExecutorService es = Executors.newFixedThreadPool(1);
+      Future<Integer> future = es.submit(new ExCallable());
+
+    try {
+      Integer result = future.get();
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    } catch (ExecutionException e) {
+        Throwable cause = e.getCause();
+    }
+    es.close();
+    }
+
+    static class ExCallable implements Callable<Integer> {
+      @Override
+      public Integer call() {
+        throw new IllegalStateException("ex!");
+      }
+    }
+}
+```
+- **요청 스레드** : es.submit(new ExCallable())을 호출해서 작업을 전달한다.
+- **작업 스레드** : ExCallable을 실행하는데, IllegalStateException 예외가 발생한다.
+   - 작업 스레드는 Future에 발생한 예외를 담아둔다. 참고로 예외도 객체이다.
+   - 예외가 발생했으므로 Future 의 상태는 FAILED가 된다.
+- **요청 스레드** : 결과를 얻기 위해 future.get()을 호출한다.
+   - Future의 상태가 FAILED면 IllegalStateException 예외를 던진다.
+   - 이 예외는 내부에 앞서 Future에 저장해둔 IllegalStateException을 포함하고 있다.
+   - e.getCause()을 호출하면 작업에서 발생한 원본 예외를 받을 수 있다.
+ 
+## 7. ExecutorService - 작업 컬렉션 처리
+- ExecutorService는 여러 작업을 한 번에 편리하게 처리하는 invokeAll(), invokeAny() 기능을 제공한다.
+**invokeAll()**
+  - 모든 Callable 작업을 제출하고 모든 작업이 완료될 때까지 기다린다.
+  - 매개변수로 timeout, unit을 전달하면 지정된 시간동안 기다린다.
+**invokeAny()**
+  - 하나의 Callable 작업이 완료될 때까지 기다리고, 가장 먼저 완료된 작업의 결과를 반환한다.
+  - 완료되지 않은 나머지 작업은 취소한다.
+  - 매개변수로 timeout, unit을 전달하면 지정된 시간동안 기다린다.
+ 
+```
+public class InvokeAllMain {
+    public static void main(String[] args) throws  ExecutionException,InterruptedException {
+      ExecutorService es = Executors.newFixedThreadPool(10)
+
+       CallableTask task1 = new CallableTask("task1", 1000);
+       CallableTask task2 = new CallableTask("task2", 2000);
+       CallableTask task3 = new CallableTask("task3", 3000);
+       List<CallableTask> tasks = List.of(task1, task2, task3);
+
+        List<Future<Integer>> futures = es.invokeAll(tasks);
+         for (Future<Integer> future : futures) {
+         Integer value = future.get();
+        }
+        es.close()
+    }
+}
+```
