@@ -27,13 +27,13 @@
 - shutdown()을 호출하고, 하루를 기다려도 작업이 완료되지 않으면 shutdownNow()를 호출한다.
 - 호출한 스레드에 인터럽트가 발생해서 shutdownNow()를 호출한다.
 
-## 1-1. shutdown() - 처리 중인 작업이 없는 경우
+### 1-1. shutdown() - 처리 중인 작업이 없는 경우
 - ExecutorService에 아무런 작업이 없고, 스레드만 2개 대기하고 있다.
 - shutdown()을 호출한다.
 - ExecutorService는 새로운 요청을 거절한다.
 - 스레드 풀의 자원을 정리한다.
 
-## 1-2. shutdown() - 처리 중인 작업이 있는 경우
+### 1-2. shutdown() - 처리 중인 작업이 있는 경우
 - shutdown()을 호출한다.
 - ExecutorService는 새로운 요청을 거절한다.
 - 스레드 풀의 스레드는 처리중인 작업을 완료한다.
@@ -41,7 +41,7 @@
 - 모든 작업을 완료하면 자원을 정리한다.
 - 결과적으로 처리중이던 taskA, taskB는 물론이고, 큐에 대기중이던 taskC, taskD도 완료된다.
 
-## 1-3. shutdownNow() - 처리중인 작업이 있는 경우
+### 1-3. shutdownNow() - 처리중인 작업이 있는 경우
 - shutdownNow()를 호출한다.
 - ExecutorService는 새로운 요청을 거절한다.
 - 큐를 비우면서, 큐에 있는 작업을 모두 꺼내서 컬렉션으로 반환한다.
@@ -51,7 +51,7 @@
    - 큐에 대기 중인 taskC, taskD는 수행되지 않는다.
 - 작업을 완료하면 자원을 정리한다.
 
-  ## 2. ExecutorService 우아한 종료 - 구현
+## 2. ExecutorService 우아한 종료 - 구현
   ```
   public class ExecutorShutdownMain {
 
@@ -100,7 +100,7 @@ if(!es.awaitTermination(10, TimeUnit.SECONDS)) {
    - 그런데 longTask는 10초가 지나도 완료되지 않았다.
    - 따라서 false를 반환한다.
  
-- **서비스 정상 종료 실패 -> 강제 종료 시도 **
+- **서비스 정상 종료 실패 -> 강제 종료 시도**
   ```
   es.shutdownNow();
 
@@ -111,4 +111,56 @@ if(!es.awaitTermination(10, TimeUnit.SECONDS)) {
 - shutdownNow()를 통해 강제 종료에 들어간다. shutdown()과 마찬가지로 블로킹 메서드가 아니다.
 **- 강제 종료를 하면 작업 중인 스레드에 인터럽트가 발생한다. 다음 로그를 통해 인터럽트를 확인할 수 있다.**
 - 인터럽트가 발생하면서 스레드도 작업을 종료하고, shutdownNow()를 통한 강제 shutdown도 완료된다.
-- 
+
+- **서비스 종료 실패**
+- 마지막에 강제종료인 es.shutdownNow()를 호추한 다음에 왜 10초간 또 기다릴까?
+- shutdownNow()가 작업 중인 스레드에 인터럽트를 호출하는 것은 맞다.
+- 인터럽트 이후에, 자원을 정리하는 어떤 간단한 작업을 수행할 수도 있다.
+- 이런 시간을 기다려 주는 것이다.
+- 극단적이지만 최악의 경우 스레드가 다음과 같이 인터럽트를 받을 수 없는 코드를 수행중일 수 있다.
+  ```
+  while(true) {}
+  ```
+- 이 경우 인터럽트 예외가 발생하지 않고, 스레드도 계속 수행된다.
+- 이런 스레드는 자바를 강제 종료해야 제거할 수 있다.
+ 
+## 3. Executor 스레드 풀 관리 - 코드
+```
+public class PoolSizeMainV1 {
+
+   public static void main(String[] args) throws InterruptedException {
+
+      BlockingQueue<Runnable> 작업을 보관할 큐 = new ArrayBlockingQueue<>(2);
+      ExecutorService es = new ThreadPoolExecutor(기본 스레드 수 , 최대 스레드 수 , 초과 스레드가 생존할 수 있는 대기시간, 단위, 작업을 보관할 큐);
+      printState(es);
+
+      es.execute(new RunnableTask("task1");
+      es.execute(new RunnableTask("task2");
+      es.execute(new RunnableTask("task3");
+      es.execute(new RunnableTask("task4");
+      es.execute(new RunnableTask("task5");
+      es.execute(new RunnableTask("task6");
+
+      try {
+         es.execute(new RunnableTask("task7"));
+      } catch (RejectedExecutionException e) {
+   
+      }
+      es.close();
+   }
+}
+```
+
+```
+BlockingQueue<Runnable> workQueue = new ArrayBlockingQueue<>(2);
+ExecutorService es = new ThreadPoolExecutor(2,4,3000, TimeUnit.MILLISECONDS, workQueue);
+```
+### 3-1. Executor 스레드 풀 관리 - 분석
+1. 작업을 요청하면 core 사이즈만큼 스레드를 만든다.
+2. core 사이즈를 초과하면 큐에 작업을 넣는다.
+3. 큐를 초과하면 max 사이즈만큼 스레드를 만든다. 임시로 사용되는 초과 스레드가 생성된다.
+   - 큐가 가득차서 큐에 넣을 수도 없다. 초과 스레드가 바로 수행해야 한다.
+4. max 사이즈를 초과하면 요청을 거절한다. 예외가 발생한다.
+    - 큐도 가득차고, 풀에 최대 생성 가능한 스레드 수도 가득 찼다. 작업을 받을 수 없다.
+  
+## 4. Executor 전략 - 고정 풀 전략 (p.31)
