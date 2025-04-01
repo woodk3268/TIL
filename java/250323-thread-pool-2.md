@@ -113,7 +113,7 @@ if(!es.awaitTermination(10, TimeUnit.SECONDS)) {
 - 인터럽트가 발생하면서 스레드도 작업을 종료하고, shutdownNow()를 통한 강제 shutdown도 완료된다.
 
 - **서비스 종료 실패**
-- 마지막에 강제종료인 es.shutdownNow()를 호추한 다음에 왜 10초간 또 기다릴까?
+- 마지막에 강제종료인 es.shutdownNow()를 호출출한 다음에 왜 10초간 또 기다릴까?
 - shutdownNow()가 작업 중인 스레드에 인터럽트를 호출하는 것은 맞다.
 - 인터럽트 이후에, 자원을 정리하는 어떤 간단한 작업을 수행할 수도 있다.
 - 이런 시간을 기다려 주는 것이다.
@@ -163,4 +163,92 @@ ExecutorService es = new ThreadPoolExecutor(2,4,3000, TimeUnit.MILLISECONDS, wor
 4. max 사이즈를 초과하면 요청을 거절한다. 예외가 발생한다.
     - 큐도 가득차고, 풀에 최대 생성 가능한 스레드 수도 가득 찼다. 작업을 받을 수 없다.
   
-## 4. Executor 전략 - 고정 풀 전략 (p.31)
+## 4. Executor 전략
+### 4-1. 고정 풀 전략 
+**newFixedThreadPool(nThreads)**
+- 스레드 풀에 nThread 만큼의 기본 스레드를 생성한다. 초과 스레드는 생성하지 않는다.
+- 큐 사이즈에 제한이 없다.(LinkedBlockingQueue)
+- 스레드 수가 고정되어 있기 때문에 CPU, 메모리 리소스가 어느 정도 예측 가능한 안정적인 방식이다.
+```
+ new ThreadPoolExecutor(nThreads, nThreads, 0L, TimeUnit.MILLISECONDS,new LinkedBlockingQueue<Runnable>())
+```
+
+```
+public class PoolSizeMainV2 {
+
+   public static void main(String[] args) throws InterruptedException {
+
+      ExecutorService es = Executors.newFixedThreadPool(2);
+
+      for (int i = 1; i<=6 ; i++ ) {
+         String taskName = "task" + i;
+         es.execute(new RunnableTask(taskName));
+      }
+      es.close();
+   }
+}
+```
+
+**특징**
+- 스레드 수가 고정되어 있기 때문에 CPU, 메모리 리소스가 어느 정도 예측 가능한 안정적인 방식이다.
+- 큐 사이즈도 제한이 없어서 작업을 많이 담아두어도 문제가 없다.
+
+**문제**
+- 사용자가 확대되거나 갑작스런 요청이 증가할 때는 장점이 단점이 되기도 한다.
+- 고정 스레드 전략은 실행되는 스레드 수가 고정되어 있다. 따라서 사용자가 늘어나도 CPU, 메모리 사용량이 확 늘어나지 않는다.
+- 요청이 처리되는 시간보다 쌓이는 시간이 더 빠르면, 문제가 될 수 있다.
+- 결국 서버 자원은 여유가 있는데, 사용자만 점점 느려지는 문제가 발생한 것이다.
+
+### 4-2. 캐시 풀 전략
+**newCachedThreadPool()**
+- 기본 스레드를 사용하지 않고, 60초 생존 주기를 가진 초과 스레드만 사용한다.
+- 초과 스레드의 수는 제한이 없다.
+- 큐에 작업을 저장하지 않는다.(SynchronousQueue)
+  - 대신에 생산자의 요청을 스레드 풀의 소비자 스레드가 직접 받아서 바로 처리한다.
+- 모든 요청이 대기하지 않고 스레드가 바로바로 처리한다. 따라서 빠른 처리가 가능하다.
+
+```
+new ThreadPoolExecutor(0, Integer.MAX_VALUE, 60L, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
+```
+SynchronousQueue는 아주 특별한 블로킹 큐이다.
+- BlockingQueue 인터페이스의 구현체 중 하나이다.
+- 이 큐는 내부에 저장 공간이 없다. 대신에 생산자의 작업을 소비자 스레드에게 직접 전달한다.
+- 쉽게 이야기해서 저장 공간의 크기가 0이고, 생산자 스레드가 작업을 전달하면 소비자 스레드가 큐에서 작업을 꺼낼 때까지 대기한다.
+- 소비자 작업을 요청하면 기다리던 생산자가 소비자에게 직접 작업을 전달하고 반환된다. 그 반대의 경우도 같다.
+- 이름 그대로 생산자와 소비자를 동기화하는 큐이다.
+
+```
+public class PoolSizeMainV3 {
+
+   public static void main (String[] args) throws InterruptedException {
+
+      ThreadPoolExecutor es = new ThreadPoolExecutor(0, Integer.MAX_VALUE, 3, TimeUnit.SECONDS, new SynchronousQueue<>());
+
+      for (int i=1; i<=4; i++) {
+         String taskName = "task" + i;
+         es.execute(new RunnableTask(taskName));
+      }
+      es.close();
+   }
+}
+```
+
+**특징**
+- 캐시 스레드 풀 전략은 매우 빠르고, 유연한 전략이다.
+- 이 전략은 기본 스레드도 없고, 대기 큐에 작업도 쌓이지 않는다.
+- 대신에 작업 요청이 오면 초과 스레드로 작업을 바로바로 처리한다.
+- 초과 스레드의 수도 제한이 없기 때문에 CPU, 메모리 자원만 허용한다면 시스템의 자원을 최대로 사용할 수 있다.
+- 초과 스레드의 유지 시간이 있기 때문에 요청이 갑자기 증가하면 스레드도 갑자기 증가하고, 요청이 줄어들면 스레드도 점점 줄어든다.
+- 작업의 요청 수에 따라서 스레드도 증가하고 감소한다.
+
+**문제**
+- 갑작스런 요청이 증가하면 너무 많은 스레드가 작업을 처리하면서 시스템 전체가 느려지는 현상이 발생한다.
+- 캐시 스레드 풀 전략은 스레드가 무한으로 생성될 수 있다.
+
+- 
+- 수 천개의 스레드가 처리하는 속도보다 더 많은 작업이 들어온다.
+- 시스템은 너무 많은 스레드에 잠식당해서 거의 다운된다. 메모리도 거의 다 사용되어 버린다.
+- 시스템이 멈추는 장애가 발생한다. 
+
+### 4-3. 사용자 정의 풀 전략
+  
