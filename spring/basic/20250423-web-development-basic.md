@@ -50,4 +50,24 @@ resources/templates/hello-template.html
 2. 내장 톰캣 서버 수신 -> pring 컨테이너에게 해당 요청을 처리할 수 있는 컨트롤러가 있는지 물어봄
    - helloController가 해당 URL을 매핑해서 실행
    - viewResolver가 templates/hello-template.html 파일 찾아서 렌더링
-      
+
+## API
+**ResponseBody 문자 반환**
+```
+@Controller
+public class HelloController {
+ @GetMapping("hello-api")
+ @ResponseBody
+ public Hello helloApi(@RequestParam("name") String name) {
+   Hello hello = new Hello();
+   hello.setName(name);
+   return hello;
+ }
+}
+```
+- @ResponseBody를 사용하고, 객체를 반환하면 객체가 JSON으로 변환된다.
+
+**ResponseBody 사용 원리**
+- @ResponseBody 사용
+  - HTTP의 BODY에 문자 내용을 직접 반환
+  - viewResolver 대신에 HttpMessageConverter가 동작
