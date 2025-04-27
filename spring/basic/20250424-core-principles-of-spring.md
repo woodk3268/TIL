@@ -95,4 +95,42 @@ public class AppConfig {
 ### 5-2. 의존관계 주입 DI(Dependency Injection)
 - OrderServiceImpl은 DiscountPolicy 인터페이스에 의존한다. 실제 어떤 구현 객체가 사용될지는 모른다.
 - 의존관계는 **정적인 클래스 의존 관계와, 실행 시점에 결정되는 동적인 객체(인스턴스) 의존관계** 둘을 분리해서 생각해야 한다.
-- 
+
+**정적인 클래스 의존관계**
+: 클래스가 사용하는 import 코드만 보고 의존관계를 쉽게 판단할 수 있다. 애플리케이션을 실행하지 않아도 분석할 수 있다.
+
+**동적인 객체 인스턴스 의존관계**
+: 애플리케이션 실행 시점에 실제 생성된 객체 인스턴스의 참조가 연결된 의존 관계다.
+
+**객체 다이어그램**
+- 애플리케이션 실행 시점(런타임)에 외부에서 실제 구현 객체를 생성하고 클라이언트에 전달해서 클라이언트와 서버의 실제 의존관계가 연결되는 것을 의존관계 주입이라 한다.
+- 의존관계 주입을 사용하면 정적인 클래스 의존관계를 변경하지 않고, 동적인 객체 인스턴스 의존관계를 쉽게 변경할 수 있다.
+
+**IoC 컨테이너, DI 컨테이너**
+- AppConfig 처럼 객체를 생성하고 관리하면서 의존관계를 연결해주는 것을 IoC 컨테이너 또는 DI 컨테이너라 한다.
+
+## 6. 스프링 컨테이너
+```
+ @Configuration
+ public class AppConfig {
+    @Bean
+    public MemberService memberService() {
+      return new MemberServiceImpl(memberRepository());
+     }
+ }
+```
+
+```
+ public class MemberApp {
+  public static void main(String[] args) {
+
+    ApplicationContext applicationContext = new AnnotationConfigApplicationContext(AppConfig.class);
+    MemberService memberService = applicationContext.getBean("memberService", MemberService.class);
+    }
+ }
+```
+- ApplicationContext를 스프링 컨테이너라 한다.
+- 스프링 컨테이너는 @Configuration이 붙은 AppConfig를 설정(구성)정보로 사용한다.
+- 여기서 @Bean이라 적힌 메서드를 모두 호출해서 반환된 객체를 스프링 컨테이너에 등록한다.
+- 이렇게 스프링 컨테이너에 등록된 객체를 스프링 빈이라 한다.
+- 스프링 빈은 applicationContext.getBean()을 사용해서 조회할 수 있다.
