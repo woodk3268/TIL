@@ -88,4 +88,43 @@ create table item (
 2. 점진적으로 JdbcTemplate → MyBatis → JPA → Spring Data JPA → Querydsl 적용
 3. 각 기술의 특징, 장단점을 실습과 비교를 통해 이해
 
+---
+
+##  Spring AOP와 `@PostConstruct` vs `@EventListener(ApplicationReadyEvent.class)`
+
+### ✅ AOP란?
+
+* AOP(Aspect-Oriented Programming)는 \*\*공통 관심사(Cross-Cutting Concerns)\*\*를 비즈니스 로직과 분리하여 모듈화하는 기법이다.
+* 대표적인 공통 관심사 예:
+
+  * 트랜잭션 처리 (`@Transactional`)
+  * 로깅
+  * 보안
+  * 예외 처리
+  * 캐싱 등
+* **Spring AOP**는 프록시 기반으로 AOP를 제공하며, 런타임에 프록시 객체를 만들어 기능을 삽입한다.
+
+---
+
+### ✅ `@PostConstruct` vs `@EventListener(ApplicationReadyEvent.class)`
+
+| 항목      | `@PostConstruct`           | `@EventListener(ApplicationReadyEvent.class)` |
+| ------- | -------------------------- | --------------------------------------------- |
+| 호출 시점   | 빈 초기화 직후                   | 스프링 컨테이너 완전 초기화 후                             |
+| 트랜잭션 처리 | `@Transactional` 미적용될 수 있음 | `@Transactional` 정상 적용됨                       |
+| 사용 목적   | 간단한 설정값 초기화                | DB 저장 등 AOP가 필요한 초기화                          |
+| 주의 사항   | AOP 미적용 상태에서 실행될 수 있음      | AOP 적용 완료 상태에서 실행됨                            |
+
+---
+
+### ✅ 정리
+
+* `@PostConstruct`는 **간단한 초기화 로직**에 적합.
+* `@EventListener(ApplicationReadyEvent.class)`는 **AOP 기반 기능(@Transactional 등)이 필요한 초기화 로직**에 적합.
+* **스프링 컨테이너가 완전히 초기화된 이후 안전하게 실행되길 원한다면 `ApplicationReadyEvent`를 사용하는 것이 좋다.**
+
+---
+
+필요하다면 코드 예제나 참고 링크도 함께 정리해드릴 수 있어요!
+
 
